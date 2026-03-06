@@ -2,27 +2,34 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import urllib.parse
-import os
 from io import BytesIO
+from streamlit_gsheets import GSheetsConnection
 
-# Bibliotecas para geração de PDF
+# Bibliotecas para PDF
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="CheckList Pro Máquinas", page_icon="🚜", layout="wide")
+st.set_page_config(page_title="CheckList Cloud Pro", page_icon="🚜", layout="wide")
 
-DB_FILE = "historico_inspecoes.csv"
+# --- CONEXÃO COM GOOGLE SHEETS ---
+# Nota: O link da planilha deve estar configurado no st.secrets ou passado via conexão
+conn = st.connection("gsheets", type=GSheetsConnection)
 
-# --- FUNÇÕES DE APOIO ---
-def salvar_dados(dados):
-    df_novo = pd.DataFrame([dados])
-    if not os.path.isfile(DB_FILE):
-        df_novo.to_csv(DB_FILE, index=False)
-    else:
-        df_novo.to_csv(DB_FILE, mode='a', header=False, index=False)
+def salvar_no_google(dados):
+    try:
+        # Lê os dados existentes
+        df_existente = conn.read(ttl=0) # ttl=0 garante que não use cache antigo
+        df_novo = pd.DataFrame([dados])
+        # Concatena e atualiza
+        df_final = pd.concat([df_existente, df_novo], ignore_index=True)
+        conn.update(data=df_final)
+        return True
+    except Exception as e:
+        st.error(f"Erro ao salvar na nuvem: {e}")
+        return False
 
 def gerar_pdf(df):
     output = BytesIO()
@@ -30,8 +37,8 @@ def gerar_pdf(df):
     elements = []
     styles = getSampleStyleSheet()
     
-    elements.append(Paragraph("RELATÓRIO DE NÃO CONFORMIDADES", styles['Title']))
-    elements.append(Paragraph(f"Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M')}", styles['Normal']))
+    elements.append(Paragraph("RELATÓRIO DE NÃO CONFORMIDADES (NUVEM)", styles['Title']))
+    elements.append(Paragraph(f"Extraído em: {datetime.now().strftime('%d/%m/%Y %H:%M')}", styles['Normal']))
     elements.append(Spacer(1, 20))
     
     df_pdf = df[['Data', 'Máquina', 'Funcionário', 'Falhas']]
@@ -44,125 +51,98 @@ def gerar_pdf(df):
         ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
         ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
         ('FONTSIZE', (0, 0), (-1, -1), 8),
-        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
         ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-        ('VALIGN', (0, 0), (-1, -1), 'TOP'),
     ]))
-    
     elements.append(t)
     doc.build(elements)
     return output.getvalue()
 
-# --- INTERFACE PRINCIPAL ---
-st.title("🚜 CheckList de Máquinas Pro")
+# --- INTERFACE ---
+st.title("🚜 CheckList Pro - Armazenamento em Nuvem")
 
-aba1, aba2 = st.tabs(["📋 Nova Inspeção", "📜 Histórico de Falhas"])
+aba1, aba2 = st.tabs(["📋 Nova Inspeção", "📜 Histórico Cloud"])
 
-# --- ABA 1: NOVA INSPEÇÃO ---
 with aba1:
-    st.header("Formulário de Inspeção Diária")
-    
-    # Usamos o state para controlar se a inspeção foi finalizada e mostrar os botões de envio
     if 'finalizado' not in st.session_state:
         st.session_state.finalizado = False
 
     if not st.session_state.finalizado:
-        with st.form("form_inspecao", clear_on_submit=True):
+        with st.form("form_inspecao"):
             col1, col2, col3 = st.columns(3)
-            with col1:
-                nome = st.text_input("👤 Funcionário", placeholder="Nome completo")
-            with col2:
-                maquina = st.selectbox("🚜 Máquina", [
-                    "01 - Travel 75", "02 - Travel 35", "03 - Trator Massey Ferguson",
-                    "04 - Trator Valtra 100", "05 - Trator Valtra 100", 
-                    "06 - Empilhadeira Zenshin", "07 - Plataforma Snocker", 
-                    "23 - Empilhadeira Liugong"
-                ])
-            with col3:
-                horimetro = st.number_input("⏲️ Horímetro Atual", min_value=0.0, step=0.1)
-
+            nome = col1.text_input("👤 Funcionário")
+            maquina = col2.selectbox("🚜 Máquina", ["01 - Travel 75", "02 - Travel 35", "03 - Trator Massey Ferguson", "04 - Trator Valtra 100", "05 - Trator Valtra 100", "06 - Empilhadeira Zenshin", "07 - Plataforma Snocker", "23 - Empilhadeira Liugong"])
+            horimetro = col3.number_input("⏲️ Horímetro", min_value=0.0, step=0.1)
+            
             st.divider()
-            itens = ["NÍVEL DE ÓLEO DO CARTER", "ÓLEO HIDRÁULICO", "NÍVEL DE ÁGUA DO RADIADOR", 
-                     "PRESSÃO E ESTADO DOS PNEUS", "FUNCIONAMENTO DO FREIO ESTACIONÁRIO", 
-                     "INSTRUMENTOS DO PAINEL", "VAZAMENTO DE COMBUSTÍVEL", "SISTEMA DE DIREÇÃO", 
-                     "FUNCIONAMENTO DO MOTOR", "CORREIA DO VENTILADOR", "BUZINA", 
-                     "FARÓIS E LANTERNAS", "CARGA EXTINTOR", "LIMPEZA GERAL", 
-                     "PINTURA/AVARIAS", "GARRAS E GARFOS", "DESLOCADORES DAS CINTAS"]
+            itens = ["NÍVEL DE ÓLEO", "ÓLEO HIDRÁULICO", "ÁGUA RADIADOR", "PNEUS", "FREIO ESTACIONÁRIO", "PAINEL", "VAZAMENTO COMBUSTÍVEL", "DIREÇÃO", "MOTOR", "CORREIA", "BUZINA", "FARÓIS", "EXTINTOR", "LIMPEZA", "AVARIAS", "GARRAS/GARFOS", "CINTAS"]
             
             respostas = {}
-            c_itens1, c_itens2 = st.columns(2)
+            c1, c2 = st.columns(2)
             for i, item in enumerate(itens):
-                target_col = c_itens1 if i % 2 == 0 else c_itens2
-                respostas[item] = target_col.radio(item, ["OK", "NÃO OK", "N/A"], horizontal=True, key=f"inspec_{i}")
+                target = c1 if i % 2 == 0 else c2
+                respostas[item] = target.radio(item, ["OK", "NÃO OK", "N/A"], horizontal=True, key=f"radio_{i}")
 
-            btn_finalizar = st.form_submit_button("🏁 FINALIZAR INSPEÇÃO")
-
-            if btn_finalizar:
-                if not nome:
-                    st.error("⚠️ Digite o nome do funcionário.")
-                else:
-                    data_inspecao = datetime.now().strftime("%Y-%m-%d %H:%M")
-                    falhas_lista = [item for item, status in respostas.items() if status == "NÃO OK"]
-                    status_txt = "🔴 NÃO CONFORMIDADE" if falhas_lista else "🟢 OK"
-                    
-                    dados_final = {
-                        "Data": data_inspecao, "Funcionário": nome, "Máquina": maquina,
-                        "Horímetro": horimetro, "Status": status_txt,
-                        "Falhas": ", ".join(falhas_lista) if falhas_lista else "Nenhuma"
+            if st.form_submit_button("🏁 FINALIZAR E SALVAR NA NUVEM"):
+                if nome:
+                    falhas = [it for it, stt in respostas.items() if stt == "NÃO OK"]
+                    status = "🔴 NÃO CONFORMIDADE" if falhas else "🟢 OK"
+                    dados = {
+                        "Data": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                        "Funcionário": nome,
+                        "Máquina": maquina,
+                        "Horímetro": horimetro,
+                        "Status": status,
+                        "Falhas": ", ".join(falhas) if falhas else "Nenhuma"
                     }
-                    salvar_dados(dados_final)
                     
-                    # Armazena dados no session_state para exibir após o submit
-                    st.session_state.dados_ultima = dados_final
-                    st.session_state.msg_wa = f"📋 *RELATÓRIO: {maquina}*\nStatus: {status_txt}\nFunc: {nome}\nHor: {horimetro}h" + (f"\n❌ Falhas: {', '.join(falhas_lista)}" if falhas_lista else "")
-                    st.session_state.finalizado = True
-                    st.rerun()
-
+                    with st.spinner("Salvando dados na Planilha Google..."):
+                        if salvar_no_google(dados):
+                            st.session_state.dados_ultima = dados
+                            st.session_state.finalizado = True
+                            st.rerun()
+                else:
+                    st.error("Por favor, preencha o nome.")
     else:
-        # TELA DE PÓS-FINALIZAÇÃO
         res = st.session_state.dados_ultima
-        if "🔴" in res['Status']:
-            st.warning(f"### ⚠️ Inspeção Finalizada: {res['Status']}")
-            st.write(f"**Falhas:** {res['Falhas']}")
-        else:
-            st.success(f"### ✅ Inspeção Finalizada: {res['Status']}")
-
-        st.write("---")
-        st.subheader("📤 Compartilhar Relatório")
-        c1, c2 = st.columns(2)
-        c1.link_button("📲 WhatsApp", f"https://api.whatsapp.com/send?text={urllib.parse.quote(st.session_state.msg_wa)}", use_container_width=True, type="primary")
-        c2.link_button("📧 E-mail", f"mailto:?subject=Inspeção {res['Máquina']}&body={urllib.parse.quote(st.session_state.msg_wa)}", use_container_width=True)
+        st.success(f"Dados salvos com sucesso na nuvem! Status: {res['Status']}")
         
-        st.write("---")
-        if st.button("➕ INICIAR NOVA INSPEÇÃO", use_container_width=True):
+        c1, c2 = st.columns(2)
+        msg_wa = f"📋 *RELATÓRIO: {res['Máquina']}*\nStatus: {res['Status']}\nFunc: {res['Funcionário']}\nFalhas: {res['Falhas']}"
+        c1.link_button("📲 WhatsApp", f"https://api.whatsapp.com/send?text={urllib.parse.quote(msg_wa)}", use_container_width=True)
+        c2.link_button("📧 E-mail", f"mailto:?subject=Inspeção&body={urllib.parse.quote(msg_wa)}", use_container_width=True)
+        
+        if st.button("➕ NOVA INSPEÇÃO", use_container_width=True):
             st.session_state.finalizado = False
             st.rerun()
 
-# --- ABA 2: HISTÓRICO ---
 with aba2:
-    st.header("Histórico de Não Conformidades")
-    if os.path.exists(DB_FILE):
-        df_hist = pd.read_csv(DB_FILE)
-        df_hist['Data'] = pd.to_datetime(df_hist['Data'])
-        
-        col_data1, col_data2 = st.columns(2)
-        data_ini = col_data1.date_input("Data Inicial", value=datetime.now().replace(day=1))
-        data_fim = col_data2.date_input("Data Final", value=datetime.now())
-        
-        mask = (df_hist['Status'] == "🔴 NÃO CONFORMIDADE") & (df_hist['Data'].dt.date >= data_ini) & (df_hist['Data'].dt.date <= data_fim)
-        df_filtrado = df_hist.loc[mask].sort_values(by="Data", ascending=False)
-        
-        if not df_filtrado.empty:
-            df_view = df_filtrado.copy()
-            df_view['Data'] = df_view['Data'].dt.strftime('%d/%m/%Y %H:%M')
-            st.dataframe(df_view, use_container_width=True, hide_index=True)
+    st.header("Histórico Permanente (Google Sheets)")
+    try:
+        df_cloud = conn.read(ttl=0)
+        if not df_cloud.empty:
+            df_cloud['Data'] = pd.to_datetime(df_cloud['Data'])
             
-            st.divider()
-            c_pdf, c_mail = st.columns(2)
-            pdf_bytes = gerar_pdf(df_view)
-            c_pdf.download_button("📄 GERAR PDF", pdf_bytes, "historico.pdf", "application/pdf", use_container_width=True)
+            col_d1, col_d2 = st.columns(2)
+            d_ini = col_d1.date_input("Início", value=datetime.now().replace(day=1), key="d_ini")
+            d_fim = col_d2.date_input("Fim", value=datetime.now(), key="d_fim")
             
-            corpo_mail = f"Resumo de Falhas ({data_ini} a {data_fim}):\n" + "\n".join([f"- {r['Data']}: {r['Máquina']} ({r['Falhas']})" for _, r in df_view.iterrows()])
-            c_mail.link_button("📧 Enviar por E-mail", f"mailto:?subject=Relatorio de Falhas&body={urllib.parse.quote(corpo_mail)}", use_container_width=True)
-    else:
-        st.info("Nenhum registro encontrado.")
+            mask = (df_cloud['Status'] == "🔴 NÃO CONFORMIDADE") & (df_cloud['Data'].dt.date >= d_ini) & (df_cloud['Data'].dt.date <= d_fim)
+            df_filtrado = df_cloud.loc[mask].sort_values(by="Data", ascending=False)
+            
+            if not df_filtrado.empty:
+                df_view = df_filtrado.copy()
+                df_view['Data'] = df_view['Data'].dt.strftime('%d/%m/%Y %H:%M')
+                st.dataframe(df_view, use_container_width=True, hide_index=True)
+                
+                c_pdf, c_mail = st.columns(2)
+                pdf_bytes = gerar_pdf(df_view)
+                c_pdf.download_button("📄 GERAR PDF", pdf_bytes, "relatorio_nuvem.pdf", "application/pdf", use_container_width=True)
+                
+                corpo = f"Relatório de Falhas ({d_ini} a {d_fim}):\n" + "\n".join([f"- {r['Máquina']}: {r['Falhas']}" for _, r in df_view.iterrows()])
+                c_mail.link_button("📧 Enviar Histórico por E-mail", f"mailto:?subject=Relatorio Cloud&body={urllib.parse.quote(corpo)}", use_container_width=True)
+            else:
+                st.info("Nenhuma falha encontrada no período.")
+        else:
+            st.info("A planilha está vazia.")
+    except:
+        st.warning("Conecte sua planilha Google nos 'Secrets' para visualizar o histórico.")
