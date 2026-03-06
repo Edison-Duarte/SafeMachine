@@ -1,0 +1,94 @@
+import streamlit as st
+import pandas as pd
+from datetime import datetime
+
+# Configuração da Página
+st.set_page_config(page_title="CheckList de Máquinas Pro", page_icon="🚜")
+
+# Estilização Customizada (CSS)
+st.markdown("""
+    <style>
+    .main { background-color: #f0f2f6; }
+    .stButton>button { width: 100%; border-radius: 10px; height: 3em; font-weight: bold; }
+    .stSelectbox, .stTextInput, .stNumberInput { margin-bottom: 20px; }
+    </style>
+    """, unsafe_allow_html=True)
+
+# Título e Cabeçalho
+st.title("📋 Inspeção Diária")
+st.subheader("CheckList de Máquinas Pro")
+st.divider()
+
+# Formulário de Identificação
+with st.container():
+    col1, col2 = st.columns(2)
+    with col1:
+        nome = st.text_input("👤 Funcionário", placeholder="Nome completo")
+    with col2:
+        maquina = st.selectbox("🚜 Máquina", [
+            "01 - Travel 75", "02 - Travel 35", "03 - Trator Massey Ferguson",
+            "04 - Trator Valtra 100", "05 - Trator Valtra 100", 
+            "06 - Empilhadeira Zenshin", "07 - Plataforma Snocker", 
+            "23 - Empilhadeira Liugong"
+        ])
+    
+    horimetro = st.number_input("⏲️ Horímetro Atual", min_value=0.0, step=0.1, format="%.1f")
+
+# Itens da Inspeção
+itens = [
+    "NÍVEL DE ÓLEO DO CARTER", "ÓLEO HIDRÁULICO", "NÍVEL DE ÁGUA DO RADIADOR", 
+    "PRESSÃO E ESTADO DOS PNEUS", "FUNCIONAMENTO DO FREIO ESTACIONÁRIO", 
+    "INSTRUMENTOS DO PAINEL", "VAZAMENTO DE COMBUSTÍVEL", "SISTEMA DE DIREÇÃO", 
+    "FUNCIONAMENTO DO MOTOR", "CORREIA DO VENTILADOR", "BUZINA", 
+    "FARÓIS E LANTERNAS", "CARGA EXTINTOR", "LIMPEZA GERAL", 
+    "PINTURA/AVARIAS", "GARRAS E GARFOS", "DESLOCADORES DAS CINTAS"
+]
+
+st.write("### Itens de Verificação")
+respostas = {}
+
+# Gerando o checklist dinamicamente
+for item in itens:
+    respostas[item] = st.radio(item, ["OK", "NÃO OK", "N/A"], horizontal=True, key=item)
+
+st.divider()
+
+# Lógica de Envio
+if st.button("ENVIAR RELATÓRIO"):
+    if not nome:
+        st.error("Por favor, preencha o nome do funcionário.")
+    else:
+        # Filtrar falhas
+        falhas = [item for item, status in respostas.items() if status == "NÃO OK"]
+        
+        if not falhas:
+            st.success(f"✅ Inspeção concluída! Tudo OK com a máquina {maquina}.")
+            st.balloons()
+        else:
+            st.warning("🚨 ALERTA DE MANUTENÇÃO: Falhas detectadas!")
+            
+            # Exibir resumo das falhas
+            for f in falhas:
+                st.write(f"❌ **{f}**")
+            
+            # Gerar link do WhatsApp
+            texto_wa = f"*🚨 ALERTA DE MANUTENÇÃO*%0A%0A"
+            texto_wa += f"*Funcionário:* {nome}%0A"
+            texto_wa += f"*Máquina:* {maquina}%0A"
+            texto_wa += f"*Horímetro:* {horimetro}h%0A%0A"
+            texto_wa += f"*ITENS COM FALHA:*%0A"
+            for f in falhas:
+                texto_wa += f"❌ _{f}_%0A"
+            
+            wa_url = f"https://api.whatsapp.com/send?text={texto_wa}"
+            
+            st.markdown(f"""
+                <a href="{wa_url}" target="_blank">
+                    <button style="width:100%; background-color:#25d366; color:white; border:none; padding:15px; border-radius:10px; font-weight:bold; cursor:pointer;">
+                        📲 COMPARTILHAR NO WHATSAPP
+                    </button>
+                </a>
+                """, unsafe_allow_html=True)
+            
+            # Opcional: Salvar em um CSV local ou Banco de Dados
+            # pd.DataFrame([respostas]).to_csv("log_inspecao.csv", mode='a', index=False)
