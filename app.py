@@ -144,8 +144,11 @@ with aba1:
 with aba2:
     st.header("Histórico Permanente (Google Sheets)")
     try:
-        df_cloud = conn.read(ttl=0)
+        # Mudança aqui também para Página1
+        df_cloud = conn.read(worksheet="Página1", ttl=0)
+        
         if df_cloud is not None and not df_cloud.empty:
+            # ... resto do seu código de filtro ...
             # Converte a coluna Data para formato de data real do pandas
             df_cloud['Data_DT'] = pd.to_datetime(df_cloud['Data'], format='%d/%m/%Y %H:%M', errors='coerce')
             
@@ -178,5 +181,6 @@ with aba2:
     except Exception as e:
         st.warning(f"Erro ao carregar histórico: {e}")
         st.info("Verifique se os Secrets estão configurados e se o e-mail da conta de serviço tem permissão de EDITOR na planilha.")
+
 
 
