@@ -19,30 +19,24 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 def salvar_no_google(dados):
     try:
-        # Tenta ler a aba "Página1" (ajuste o nome se houver espaço na aba do Google)
-        nome_aba = "Página1" 
+        # Lendo a primeira aba disponível (sem especificar nome)
+        # ttl=0 é obrigatório para ignorar o cache do Streamlit
+        df_existente = conn.read(ttl=0) 
         
-        try:
-            # ttl=0 é vital para não ler dados velhos do cache
-            df_existente = conn.read(worksheet=nome_aba, ttl=0)
-        except:
-            # Se a aba não for encontrada ou estiver vazia
-            df_existente = pd.DataFrame()
-
         df_novo = pd.DataFrame([dados])
 
         if df_existente is not None and not df_existente.empty:
-            # Remove linhas totalmente vazias que o Google às vezes gera
-            df_existente = df_existente.dropna(how='all')
+            # Garante que não estamos pegando colunas fantasmas
+            df_existente = df_existente.dropna(axis=1, how='all').dropna(axis=0, how='all')
             df_final = pd.concat([df_existente, df_novo], ignore_index=True)
         else:
             df_final = df_novo
 
-        # Salva de volta na aba correta
-        conn.update(worksheet=nome_aba, data=df_final)
+        # Atualiza a primeira aba disponível
+        conn.update(data=df_final)
         return True
     except Exception as e:
-        st.error(f"Erro ao salvar na nuvem: {e}")
+        st.error(f"Erro técnico: {e}")
         return False
 
 def gerar_pdf(df):
@@ -181,6 +175,7 @@ with aba2:
     except Exception as e:
         st.warning(f"Erro ao carregar histórico: {e}")
         st.info("Verifique se os Secrets estão configurados e se o e-mail da conta de serviço tem permissão de EDITOR na planilha.")
+
 
 
 
