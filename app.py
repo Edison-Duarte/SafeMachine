@@ -147,4 +147,3 @@ with aba2:
     except:
         st.warning("Conecte sua planilha Google nos 'Secrets' para visualizar o histórico.")
 
-
