@@ -19,23 +19,27 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 def salvar_no_google(dados):
     try:
-        # Tenta ler a aba principal, se não existir, cria um DF vazio
+        # Tenta ler a aba "Página1" (ajuste o nome se houver espaço na aba do Google)
+        nome_aba = "Página1" 
+        
         try:
-            # O parâmetro worksheet garante que estamos escrevendo na aba certa
-            df_existente = conn.read(worksheet="Sheet1", ttl=0) 
+            # ttl=0 é vital para não ler dados velhos do cache
+            df_existente = conn.read(worksheet=nome_aba, ttl=0)
         except:
+            # Se a aba não for encontrada ou estiver vazia
             df_existente = pd.DataFrame()
 
         df_novo = pd.DataFrame([dados])
 
-        # Se a planilha já tiver dados, junta. Se não, usa só o novo.
         if df_existente is not None and not df_existente.empty:
+            # Remove linhas totalmente vazias que o Google às vezes gera
+            df_existente = df_existente.dropna(how='all')
             df_final = pd.concat([df_existente, df_novo], ignore_index=True)
         else:
             df_final = df_novo
 
-        # O segredo: usamos o parâmetro 'worksheet' para garantir o destino
-        conn.update(worksheet="Sheet1", data=df_final)
+        # Salva de volta na aba correta
+        conn.update(worksheet=nome_aba, data=df_final)
         return True
     except Exception as e:
         st.error(f"Erro ao salvar na nuvem: {e}")
@@ -174,4 +178,5 @@ with aba2:
     except Exception as e:
         st.warning(f"Erro ao carregar histórico: {e}")
         st.info("Verifique se os Secrets estão configurados e se o e-mail da conta de serviço tem permissão de EDITOR na planilha.")
+
 
