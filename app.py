@@ -74,7 +74,7 @@ with aba1:
             horimetro = col3.number_input("⏲️ Horímetro", min_value=0.0, step=0.1)
             
             st.divider()
-            itens = ["NÍVEL DE ÓLEO", "ÓLEO HIDRÁULICO", "ÁGUA RADIADOR", "PNEUS", "FREIO ESTACIONÁRIO", "PAINEL", "VAZAMENTO COMBUSTÍVEL", "DIREÇÃO", "MOTOR", "CORREIA", "BUZINA", "FARÓIS", "EXTINTOR", "LIMPEZA", "AVARIAS", "GARRAS/GARFOS", "CINTAS"]
+            itens = ["NÍVEL DE ÓLEO", "ÓLEO HIDRÁULICO", "ÁGUA RADIADOR", "PNEUS", "FREIO ESTACIONÁRIO", "PAINEL", "VAZAMENTO COMBUSTÍVEL", "DIREÇÃO", "MOTOR", "CORREIA", "BUZINA", "FARÓIS", "EXTINTOR", "LIMPEZA", "AVARIAS", "GARFOS/MACACO", "CINTAS"]
             
             respostas = {}
             c1, c2 = st.columns(2)
@@ -146,3 +146,4 @@ with aba2:
             st.info("A planilha está vazia.")
     except:
         st.warning("Conecte sua planilha Google nos 'Secrets' para visualizar o histórico.")
+
