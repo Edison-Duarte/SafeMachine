@@ -19,28 +19,26 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 def salvar_no_google(dados):
     try:
-        # 1. Tenta ler os dados existentes
+        # Tenta ler a aba principal, se não existir, cria um DF vazio
         try:
-            df_existente = conn.read(ttl=0)
+            # O parâmetro worksheet garante que estamos escrevendo na aba certa
+            df_existente = conn.read(worksheet="Sheet1", ttl=0) 
         except:
-            # Se der erro na leitura (planilha vazia/nova), cria um DataFrame vazio com as colunas
-            df_existente = pd.DataFrame(columns=["Data", "Funcionário", "Máquina", "Horímetro", "Status", "Falhas"])
+            df_existente = pd.DataFrame()
 
-        # 2. Cria o DataFrame com a nova linha
         df_novo = pd.DataFrame([dados])
 
-        # 3. Concatena (Garante que os dados novos fiquem abaixo dos antigos)
-        # Se o df_existente estiver vazio ou com colunas erradas, usamos apenas o novo
+        # Se a planilha já tiver dados, junta. Se não, usa só o novo.
         if df_existente is not None and not df_existente.empty:
             df_final = pd.concat([df_existente, df_novo], ignore_index=True)
         else:
             df_final = df_novo
 
-        # 4. Atualiza a planilha no Google Drive
-        conn.update(data=df_final)
+        # O segredo: usamos o parâmetro 'worksheet' para garantir o destino
+        conn.update(worksheet="Sheet1", data=df_final)
         return True
     except Exception as e:
-        st.error(f"Erro crítico ao salvar na nuvem: {e}")
+        st.error(f"Erro ao salvar na nuvem: {e}")
         return False
 
 def gerar_pdf(df):
@@ -176,3 +174,4 @@ with aba2:
     except Exception as e:
         st.warning(f"Erro ao carregar histórico: {e}")
         st.info("Verifique se os Secrets estão configurados e se o e-mail da conta de serviço tem permissão de EDITOR na planilha.")
+
