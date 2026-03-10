@@ -58,7 +58,7 @@ def gerar_pdf(df):
     return output.getvalue()
 
 # --- INTERFACE ---
-st.title("🚜 CheckList Pro - Armazenamento em Nuvem")
+st.title("🚜 Safe Machine")
 
 aba1, aba2 = st.tabs(["📋 Nova Inspeção", "📜 Histórico Cloud"])
 
@@ -146,4 +146,5 @@ with aba2:
             st.info("A planilha está vazia.")
     except:
         st.warning("Conecte sua planilha Google nos 'Secrets' para visualizar o histórico.")
+
 
