@@ -15,20 +15,32 @@ from reportlab.lib.styles import getSampleStyleSheet
 st.set_page_config(page_title="CheckList Cloud Pro", page_icon="🚜", layout="wide")
 
 # --- CONEXÃO COM GOOGLE SHEETS ---
-# Nota: O link da planilha deve estar configurado no st.secrets ou passado via conexão
 conn = st.connection("gsheets", type=GSheetsConnection)
 
 def salvar_no_google(dados):
     try:
-        # Lê os dados existentes
-        df_existente = conn.read(ttl=0) # ttl=0 garante que não use cache antigo
+        # 1. Tenta ler os dados existentes
+        try:
+            df_existente = conn.read(ttl=0)
+        except:
+            # Se der erro na leitura (planilha vazia/nova), cria um DataFrame vazio com as colunas
+            df_existente = pd.DataFrame(columns=["Data", "Funcionário", "Máquina", "Horímetro", "Status", "Falhas"])
+
+        # 2. Cria o DataFrame com a nova linha
         df_novo = pd.DataFrame([dados])
-        # Concatena e atualiza
-        df_final = pd.concat([df_existente, df_novo], ignore_index=True)
+
+        # 3. Concatena (Garante que os dados novos fiquem abaixo dos antigos)
+        # Se o df_existente estiver vazio ou com colunas erradas, usamos apenas o novo
+        if df_existente is not None and not df_existente.empty:
+            df_final = pd.concat([df_existente, df_novo], ignore_index=True)
+        else:
+            df_final = df_novo
+
+        # 4. Atualiza a planilha no Google Drive
         conn.update(data=df_final)
         return True
     except Exception as e:
-        st.error(f"Erro ao salvar na nuvem: {e}")
+        st.error(f"Erro crítico ao salvar na nuvem: {e}")
         return False
 
 def gerar_pdf(df):
@@ -37,11 +49,14 @@ def gerar_pdf(df):
     elements = []
     styles = getSampleStyleSheet()
     
-    elements.append(Paragraph("RELATÓRIO DE NÃO CONFORMIDADES (NUVEM)", styles['Title']))
+    elements.append(Paragraph("RELATÓRIO DE NÃO CONFORMIDADES", styles['Title']))
     elements.append(Paragraph(f"Extraído em: {datetime.now().strftime('%d/%m/%Y %H:%M')}", styles['Normal']))
     elements.append(Spacer(1, 20))
     
-    df_pdf = df[['Data', 'Máquina', 'Funcionário', 'Falhas']]
+    # Seleciona apenas colunas existentes para o PDF
+    colunas_pdf = [c for c in ['Data', 'Máquina', 'Funcionário', 'Falhas'] if c in df.columns]
+    df_pdf = df[colunas_pdf]
+    
     data = [df_pdf.columns.to_list()] + df_pdf.values.tolist()
     
     t = Table(data, colWidths=[90, 100, 100, 250])
@@ -70,11 +85,20 @@ with aba1:
         with st.form("form_inspecao"):
             col1, col2, col3 = st.columns(3)
             nome = col1.text_input("👤 Funcionário")
-            maquina = col2.selectbox("🚜 Máquina", ["01 - Travel 75", "02 - Travel 35", "03 - Trator Massey Ferguson", "04 - Trator Valtra 100", "05 - Trator Valtra 100", "06 - Empilhadeira Zenshin", "07 - Plataforma Snocker", "23 - Empilhadeira Liugong"])
+            maquina = col2.selectbox("🚜 Máquina", [
+                "01 - Travel 75", "02 - Travel 35", "03 - Trator Massey Ferguson", 
+                "04 - Trator Valtra 100", "05 - Trator Valtra 100", 
+                "06 - Empilhadeira Zenshin", "07 - Plataforma Snocker", "23 - Empilhadeira Liugong"
+            ])
             horimetro = col3.number_input("⏲️ Horímetro", min_value=0.0, step=0.1)
             
             st.divider()
-            itens = ["NÍVEL DE ÓLEO", "ÓLEO HIDRÁULICO", "ÁGUA RADIADOR", "PNEUS", "FREIO ESTACIONÁRIO", "PAINEL", "VAZAMENTO COMBUSTÍVEL", "DIREÇÃO", "MOTOR", "CORREIA", "BUZINA", "FARÓIS", "EXTINTOR", "LIMPEZA", "AVARIAS", "GARRAS/GARFOS", "CINTAS"]
+            itens = [
+                "NÍVEL DE ÓLEO", "ÓLEO HIDRÁULICO", "ÁGUA RADIADOR", "PNEUS", 
+                "FREIO ESTACIONÁRIO", "PAINEL", "VAZAMENTO COMBUSTÍVEL", "DIREÇÃO", 
+                "MOTOR", "CORREIA", "BUZINA", "FARÓIS", "EXTINTOR", "LIMPEZA", 
+                "AVARIAS", "GARRAS/GARFOS", "CINTAS"
+            ]
             
             respostas = {}
             c1, c2 = st.columns(2)
@@ -87,7 +111,7 @@ with aba1:
                     falhas = [it for it, stt in respostas.items() if stt == "NÃO OK"]
                     status = "🔴 NÃO CONFORMIDADE" if falhas else "🟢 OK"
                     dados = {
-                        "Data": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                        "Data": datetime.now().strftime("%d/%m/%Y %H:%M"),
                         "Funcionário": nome,
                         "Máquina": maquina,
                         "Horímetro": horimetro,
@@ -95,13 +119,13 @@ with aba1:
                         "Falhas": ", ".join(falhas) if falhas else "Nenhuma"
                     }
                     
-                    with st.spinner("Salvando dados na Planilha Google..."):
+                    with st.spinner("Conectando ao Google Drive..."):
                         if salvar_no_google(dados):
                             st.session_state.dados_ultima = dados
                             st.session_state.finalizado = True
                             st.rerun()
                 else:
-                    st.error("Por favor, preencha o nome.")
+                    st.error("Por favor, preencha o nome do funcionário.")
     else:
         res = st.session_state.dados_ultima
         st.success(f"Dados salvos com sucesso na nuvem! Status: {res['Status']}")
@@ -119,19 +143,24 @@ with aba2:
     st.header("Histórico Permanente (Google Sheets)")
     try:
         df_cloud = conn.read(ttl=0)
-        if not df_cloud.empty:
-            df_cloud['Data'] = pd.to_datetime(df_cloud['Data'])
+        if df_cloud is not None and not df_cloud.empty:
+            # Converte a coluna Data para formato de data real do pandas
+            df_cloud['Data_DT'] = pd.to_datetime(df_cloud['Data'], format='%d/%m/%Y %H:%M', errors='coerce')
             
             col_d1, col_d2 = st.columns(2)
             d_ini = col_d1.date_input("Início", value=datetime.now().replace(day=1), key="d_ini")
             d_fim = col_d2.date_input("Fim", value=datetime.now(), key="d_fim")
             
-            mask = (df_cloud['Status'] == "🔴 NÃO CONFORMIDADE") & (df_cloud['Data'].dt.date >= d_ini) & (df_cloud['Data'].dt.date <= d_fim)
-            df_filtrado = df_cloud.loc[mask].sort_values(by="Data", ascending=False)
+            # Filtro: Apenas Não Conformidades e dentro da data
+            mask = (df_cloud['Status'] == "🔴 NÃO CONFORMIDADE") & \
+                   (df_cloud['Data_DT'].dt.date >= d_ini) & \
+                   (df_cloud['Data_DT'].dt.date <= d_fim)
+            
+            df_filtrado = df_cloud.loc[mask].sort_values(by="Data_DT", ascending=False)
             
             if not df_filtrado.empty:
-                df_view = df_filtrado.copy()
-                df_view['Data'] = df_view['Data'].dt.strftime('%d/%m/%Y %H:%M')
+                # Remove a coluna auxiliar de data antes de mostrar
+                df_view = df_filtrado.drop(columns=['Data_DT']).copy()
                 st.dataframe(df_view, use_container_width=True, hide_index=True)
                 
                 c_pdf, c_mail = st.columns(2)
@@ -141,8 +170,9 @@ with aba2:
                 corpo = f"Relatório de Falhas ({d_ini} a {d_fim}):\n" + "\n".join([f"- {r['Máquina']}: {r['Falhas']}" for _, r in df_view.iterrows()])
                 c_mail.link_button("📧 Enviar Histórico por E-mail", f"mailto:?subject=Relatorio Cloud&body={urllib.parse.quote(corpo)}", use_container_width=True)
             else:
-                st.info("Nenhuma falha encontrada no período.")
+                st.info("Nenhuma falha encontrada no período selecionado.")
         else:
-            st.info("A planilha está vazia.")
-    except:
-        st.warning("Conecte sua planilha Google nos 'Secrets' para visualizar o histórico.")
+            st.info("A planilha está vazia ou ainda não recebeu dados.")
+    except Exception as e:
+        st.warning(f"Erro ao carregar histórico: {e}")
+        st.info("Verifique se os Secrets estão configurados e se o e-mail da conta de serviço tem permissão de EDITOR na planilha.")
