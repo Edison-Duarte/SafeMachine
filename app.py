@@ -69,7 +69,7 @@ def gerar_pdf(df):
     return output.getvalue()
 
 # --- INTERFACE ---
-st.title("🚜 SafeMachine - Armazenamento em Nuvem")
+st.title("🚜 SafeMachine - CheckList")
 
 aba1, aba2 = st.tabs(["📋 Nova Inspeção", "📜 Histórico Cloud"])
 
@@ -175,6 +175,7 @@ with aba2:
     except Exception as e:
         st.warning(f"Erro ao carregar histórico: {e}")
         st.info("Verifique se os Secrets estão configurados e se o e-mail da conta de serviço tem permissão de EDITOR na planilha.")
+
 
 
 
