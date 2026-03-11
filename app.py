@@ -90,10 +90,10 @@ with aba1:
             
             st.divider()
             itens = [
-                "NÍVEL DE ÓLEO", "ÓLEO HIDRÁULICO", "ÁGUA RADIADOR", "PNEUS", 
-                "FREIO ESTACIONÁRIO", "PAINEL", "VAZAMENTO COMBUSTÍVEL", "DIREÇÃO", 
-                "MOTOR", "CORREIA", "BUZINA", "FARÓIS", "EXTINTOR", "LIMPEZA", 
-                "AVARIAS", "GARRAS/GARFOS", "CINTAS"
+                "NÍVEL DE ÓLEO DO CARTER", "ÓLEO HIDRÁULICO", "NÍVEL ÁGUA RADIADOR", "PRESSÃO E ESTADO DOS PNEUS", 
+                "FREIO ESTACIONÁRIO", "INSTRUMENTOS DO PAINEL", "VAZAMENTO COMBUSTÍVEL", "SISTEMA DE DIREÇÃO", 
+                "FUNCIONAMENTO DO MOTOR", "CORREIA DO VENTILADOR", "BUZINA", "FARÓIS/LANTERNAS", "EXTINTOR", "LIMPEZA GERAL", 
+                "PINTURA/AVARIAS", "GARFOS/MACACO", "CINTAS"
             ]
             
             respostas = {}
@@ -175,6 +175,7 @@ with aba2:
     except Exception as e:
         st.warning(f"Erro ao carregar histórico: {e}")
         st.info("Verifique se os Secrets estão configurados e se o e-mail da conta de serviço tem permissão de EDITOR na planilha.")
+
 
 
 
