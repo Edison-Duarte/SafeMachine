@@ -143,68 +143,68 @@ with aba2:
         df_cloud = conn.read(ttl=0)
         
         if df_cloud is not None and not df_cloud.empty:
-            # Tratamento de datas
+            # Tratamento de datas para garantir que o filtro funcione
             df_cloud['Data_DT'] = pd.to_datetime(df_cloud['Data'], format='%d/%m/%Y %H:%M', errors='coerce')
             
             # --- ÁREA DE FILTROS ---
             st.subheader("Filtros de Busca")
-            f_col1, f_col2, f_col3 = st.columns(3)
+            f_col1, f_col2 = st.columns(2)
+            d_ini = f_col1.date_input("📅 Início", value=datetime.now().replace(day=1), key="hist_ini")
+            d_fim = f_col2.date_input("📅 Fim", value=datetime.now(), key="hist_fim")
             
-            d_ini = f_col1.date_input("Início", value=datetime.now().replace(day=1), key="hist_ini")
-            d_fim = f_col2.date_input("Fim", value=datetime.now(), key="hist_fim")
-            
-            # Novo filtro de Status
+            f_col3, f_col4 = st.columns(2)
+            # Filtro de Status
             opcoes_status = ["Todos", "🟢 OK", "🔴 NÃO CONFORMIDADE"]
-            filtro_status = f_col3.selectbox("Filtrar por Status", opcoes_status)
+            filtro_status = f_col3.selectbox("🔍 Filtrar por Status", opcoes_status)
+            
+            # Filtro de Máquina
+            lista_maquinas = ["Todas"] + sorted(df_cloud['Máquina'].unique().tolist())
+            filtro_maquina = f_col4.selectbox("🚜 Filtrar por Máquina", lista_maquinas)
             
             # --- APLICAÇÃO DOS FILTROS ---
-            # 1. Filtro de Data
             mask = (df_cloud['Data_DT'].dt.date >= d_ini) & (df_cloud['Data_DT'].dt.date <= d_fim)
             
-            # 2. Filtro de Status (se não for "Todos")
             if filtro_status != "Todos":
                 mask = mask & (df_cloud['Status'] == filtro_status)
+            
+            if filtro_maquina != "Todas":
+                mask = mask & (df_cloud['Máquina'] == filtro_maquina)
             
             df_filtrado = df_cloud.loc[mask].sort_values(by="Data_DT", ascending=False)
             
             # --- EXIBIÇÃO ---
             if not df_filtrado.empty:
-                # Remove coluna auxiliar e prepara para exibição
                 df_view = df_filtrado.drop(columns=['Data_DT']).copy()
                 
-                # Exibe métricas rápidas
-                m1, m2 = st.columns(2)
-                m1.metric("Total de Inspeções", len(df_view))
-                m2.metric("Não Conformidades", len(df_view[df_view['Status'] == "🔴 NÃO CONFORMIDADE"]))
+                # Métricas
+                m1, m2, m3 = st.columns(3)
+                m1.metric("Total", len(df_view))
+                m2.metric("Falhas", len(df_view[df_view['Status'] == "🔴 NÃO CONFORMIDADE"]))
+                m3.metric("Conformes", len(df_view[df_view['Status'] == "🟢 OK"]))
                 
                 st.divider()
                 st.dataframe(df_view, use_container_width=True, hide_index=True)
                 
-                # --- EXPORTAÇÃO ---
-                st.subheader("Exportar Resultados")
-                c_pdf, c_csv = st.columns(2)
+                # --- EXPORTAÇÃO E COMUNICAÇÃO ---
+                st.subheader("Exportar e Partilhar")
+                c_pdf, c_csv, c_mail = st.columns(3)
                 
-                # PDF (mantém a lógica que você já tem)
+                # 1. BOTÃO PDF
                 pdf_bytes = gerar_pdf(df_view)
-                c_pdf.download_button(
-                    label="📄 Baixar PDF do Filtro Atual",
-                    data=pdf_bytes,
-                    file_name=f"relatorio_inspecoes_{datetime.now().strftime('%d_%m_%Y')}.pdf",
-                    mime="application/pdf",
-                    use_container_width=True
-                )
+                c_pdf.download_button("📄 Gerar PDF", pdf_bytes, "relatorio_inspecoes.pdf", "application/pdf", use_container_width=True)
                 
-                # CSV (opção extra para Excel)
+                # 2. BOTÃO CSV (Excel)
                 csv_data = df_view.to_csv(index=False).encode('utf-8')
-                c_csv.download_button(
-                    label="Excel (CSV)",
-                    data=csv_data,
-                    file_name="historico_checklist.csv",
-                    mime="text/csv",
-                    use_container_width=True
-                )
+                c_csv.download_button("📥 Baixar CSV", csv_data, "historico_inspecoes.csv", "text/csv", use_container_width=True)
+                
+                # 3. BOTÃO E-MAIL (Recuperado)
+                corpo_email = f"Relatório de Inspeções ({d_ini} a {d_fim}):\n\n"
+                for _, r in df_view.iterrows():
+                    corpo_email += f"- {r['Data']} | {r['Máquina']} | {r['Status']} | Falhas: {r['Falhas']}\n"
+                
+                c_mail.link_button("📧 Enviar por E-mail", f"mailto:?subject=Relatorio de Inspecoes&body={urllib.parse.quote(corpo_email)}", use_container_width=True)
             else:
-                st.info("Nenhum registro encontrado para os filtros selecionados.")
+                st.info("Nenhum registro encontrado para estes filtros.")
         else:
             st.info("A planilha está vazia.")
             
