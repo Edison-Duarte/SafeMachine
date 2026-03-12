@@ -92,7 +92,7 @@ with aba1:
             itens = [
                 "NÍVEL DE ÓLEO DO CARTER", "ÓLEO HIDRÁULICO", "NÍVEL ÁGUA RADIADOR", "PRESSÃO E ESTADO DOS PNEUS", 
                 "FREIO ESTACIONÁRIO", "INSTRUMENTOS DO PAINEL", "VAZAMENTO COMBUSTÍVEL", "SISTEMA DE DIREÇÃO", 
-                "FUNCIONAMENTO DO MOTOR", "CORREIA DO VENTILADOR", "BUZINA", "FARÓIS/LANTERNAS", "EXTINTOR", "LIMPEZA GERAL", 
+                "FUNCIONAMENTO DO MOTOR", "CORREIA DO VENTILADOR", "BUZINA", "FARÓIS/LANTERNAS", "LIMPEZA GERAL", 
                 "PINTURA/AVARIAS", "GARFOS/MACACO", "CINTAS"
             ]
             
@@ -210,6 +210,7 @@ with aba2:
             
     except Exception as e:
         st.error(f"Erro ao carregar histórico: {e}")
+
 
 
 
