@@ -136,45 +136,80 @@ with aba1:
             st.rerun()
 
 with aba2:
-    st.header("Histórico Permanente (Google Sheets)")
+    st.header("📊 Histórico Permanente (Google Sheets)")
+    
     try:
-        # Mudança aqui também para Página1
-        df_cloud = conn.read(worksheet="Página1", ttl=0)
+        # Busca os dados em tempo real
+        df_cloud = conn.read(ttl=0)
         
         if df_cloud is not None and not df_cloud.empty:
-            # ... resto do seu código de filtro ...
-            # Converte a coluna Data para formato de data real do pandas
+            # Tratamento de datas
             df_cloud['Data_DT'] = pd.to_datetime(df_cloud['Data'], format='%d/%m/%Y %H:%M', errors='coerce')
             
-            col_d1, col_d2 = st.columns(2)
-            d_ini = col_d1.date_input("Início", value=datetime.now().replace(day=1), key="d_ini")
-            d_fim = col_d2.date_input("Fim", value=datetime.now(), key="d_fim")
+            # --- ÁREA DE FILTROS ---
+            st.subheader("Filtros de Busca")
+            f_col1, f_col2, f_col3 = st.columns(3)
             
-            # Filtro: Apenas Não Conformidades e dentro da data
-            mask = (df_cloud['Status'] == "🔴 NÃO CONFORMIDADE") & \
-                   (df_cloud['Data_DT'].dt.date >= d_ini) & \
-                   (df_cloud['Data_DT'].dt.date <= d_fim)
+            d_ini = f_col1.date_input("Início", value=datetime.now().replace(day=1), key="hist_ini")
+            d_fim = f_col2.date_input("Fim", value=datetime.now(), key="hist_fim")
+            
+            # Novo filtro de Status
+            opcoes_status = ["Todos", "🟢 OK", "🔴 NÃO CONFORMIDADE"]
+            filtro_status = f_col3.selectbox("Filtrar por Status", opcoes_status)
+            
+            # --- APLICAÇÃO DOS FILTROS ---
+            # 1. Filtro de Data
+            mask = (df_cloud['Data_DT'].dt.date >= d_ini) & (df_cloud['Data_DT'].dt.date <= d_fim)
+            
+            # 2. Filtro de Status (se não for "Todos")
+            if filtro_status != "Todos":
+                mask = mask & (df_cloud['Status'] == filtro_status)
             
             df_filtrado = df_cloud.loc[mask].sort_values(by="Data_DT", ascending=False)
             
+            # --- EXIBIÇÃO ---
             if not df_filtrado.empty:
-                # Remove a coluna auxiliar de data antes de mostrar
+                # Remove coluna auxiliar e prepara para exibição
                 df_view = df_filtrado.drop(columns=['Data_DT']).copy()
+                
+                # Exibe métricas rápidas
+                m1, m2 = st.columns(2)
+                m1.metric("Total de Inspeções", len(df_view))
+                m2.metric("Não Conformidades", len(df_view[df_view['Status'] == "🔴 NÃO CONFORMIDADE"]))
+                
+                st.divider()
                 st.dataframe(df_view, use_container_width=True, hide_index=True)
                 
-                c_pdf, c_mail = st.columns(2)
-                pdf_bytes = gerar_pdf(df_view)
-                c_pdf.download_button("📄 GERAR PDF", pdf_bytes, "relatorio_nuvem.pdf", "application/pdf", use_container_width=True)
+                # --- EXPORTAÇÃO ---
+                st.subheader("Exportar Resultados")
+                c_pdf, c_csv = st.columns(2)
                 
-                corpo = f"Relatório de Falhas ({d_ini} a {d_fim}):\n" + "\n".join([f"- {r['Máquina']}: {r['Falhas']}" for _, r in df_view.iterrows()])
-                c_mail.link_button("📧 Enviar Histórico por E-mail", f"mailto:?subject=Relatorio Cloud&body={urllib.parse.quote(corpo)}", use_container_width=True)
+                # PDF (mantém a lógica que você já tem)
+                pdf_bytes = gerar_pdf(df_view)
+                c_pdf.download_button(
+                    label="📄 Baixar PDF do Filtro Atual",
+                    data=pdf_bytes,
+                    file_name=f"relatorio_inspecoes_{datetime.now().strftime('%d_%m_%Y')}.pdf",
+                    mime="application/pdf",
+                    use_container_width=True
+                )
+                
+                # CSV (opção extra para Excel)
+                csv_data = df_view.to_csv(index=False).encode('utf-8')
+                c_csv.download_button(
+                    label="Excel (CSV)",
+                    data=csv_data,
+                    file_name="historico_checklist.csv",
+                    mime="text/csv",
+                    use_container_width=True
+                )
             else:
-                st.info("Nenhuma falha encontrada no período selecionado.")
+                st.info("Nenhum registro encontrado para os filtros selecionados.")
         else:
-            st.info("A planilha está vazia ou ainda não recebeu dados.")
+            st.info("A planilha está vazia.")
+            
     except Exception as e:
-        st.warning(f"Erro ao carregar histórico: {e}")
-        st.info("Verifique se os Secrets estão configurados e se o e-mail da conta de serviço tem permissão de EDITOR na planilha.")
+        st.error(f"Erro ao carregar histórico: {e}")
 
 
 
