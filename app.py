@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
+import pytz  # Biblioteca para fuso horário
 import urllib.parse
 from io import BytesIO
 from streamlit_gsheets import GSheetsConnection
@@ -11,6 +12,13 @@ from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet
 
+# --- CONFIGURAÇÃO DE FUSO HORÁRIO (BRASÍLIA) ---
+fuso_br = pytz.timezone('America/Sao_Paulo')
+
+def get_data_hora_br():
+    """Retorna a data e hora atual de Brasília"""
+    return datetime.now(fuso_br)
+
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="CheckList Cloud Pro", page_icon="🚜", layout="wide")
 
@@ -19,9 +27,8 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 
 def salvar_no_google(dados):
     try:
-        nome_aba = "Página 1"  # Nome da aba conforme identificado no seu Google Drive
+        nome_aba = "Página 1"
         try:
-            # Tenta ler os dados existentes para concatenar
             df_existente = conn.read(worksheet=nome_aba, ttl=0)
         except:
             df_existente = pd.DataFrame()
@@ -29,13 +36,11 @@ def salvar_no_google(dados):
         df_novo = pd.DataFrame([dados])
 
         if df_existente is not None and not df_existente.empty:
-            # Remove linhas e colunas fantasmamente vazias
             df_existente = df_existente.dropna(how='all').dropna(axis=1, how='all')
             df_final = pd.concat([df_existente, df_novo], ignore_index=True)
         else:
             df_final = df_novo
 
-        # Salva a tabela atualizada na aba correta
         conn.update(worksheet=nome_aba, data=df_final)
         return True
     except Exception as e:
@@ -49,10 +54,9 @@ def gerar_pdf(df):
     styles = getSampleStyleSheet()
     
     elements.append(Paragraph("RELATÓRIO DE INSPEÇÃO DE MÁQUINAS", styles['Title']))
-    elements.append(Paragraph(f"Extraído em: {datetime.now().strftime('%d/%m/%Y %H:%M')}", styles['Normal']))
+    elements.append(Paragraph(f"Extraído em: {get_data_hora_br().strftime('%d/%m/%Y %H:%M')}", styles['Normal']))
     elements.append(Spacer(1, 20))
     
-    # Seleciona colunas principais para o PDF
     colunas_pdf = ["Data", "Máquina", "Horímetro", "Status", "Falhas"]
     df_pdf = df[colunas_pdf]
     
@@ -92,12 +96,7 @@ with aba1:
             horimetro_val = col3.number_input("⏲️ Horímetro Atual", min_value=0.0, step=0.1)
             
             st.divider()
-            itens = [
-                "NÍVEL DE ÓLEO", "ÓLEO HIDRÁULICO", "ÁGUA RADIADOR", "PNEUS", 
-                "FREIO ESTACIONÁRIO", "PAINEL", "VAZAMENTO COMBUSTÍVEL", "DIREÇÃO", 
-                "MOTOR", "CORREIA", "BUZINA", "FARÓIS", "EXTINTOR", "LIMPEZA", 
-                "AVARIAS", "GARRAS/GARFOS", "CINTAS"
-            ]
+            itens = ["NÍVEL DE ÓLEO", "ÓLEO HIDRÁULICO", "ÁGUA RADIADOR", "PNEUS", "FREIO ESTACIONÁRIO", "PAINEL", "VAZAMENTO COMBUSTÍVEL", "DIREÇÃO", "MOTOR", "CORREIA", "BUZINA", "FARÓIS", "EXTINTOR", "LIMPEZA", "AVARIAS", "GARRAS/GARFOS", "CINTAS"]
             
             respostas = {}
             c1, c2 = st.columns(2)
@@ -110,8 +109,11 @@ with aba1:
                     falhas = [it for it, stt in respostas.items() if stt == "NÃO OK"]
                     status = "🔴 NÃO CONFORMIDADE" if falhas else "🟢 OK"
                     
+                    # --- HORA DE BRASÍLIA AQUI ---
+                    agora_br = get_data_hora_br()
+                    
                     dados = {
-                        "Data": datetime.now().strftime("%d/%m/%Y %H:%M"),
+                        "Data": agora_br.strftime("%d/%m/%Y %H:%M"),
                         "Funcionário": nome,
                         "Máquina": maquina,
                         "Horímetro": horimetro_val,
@@ -128,7 +130,7 @@ with aba1:
                     st.error("Por favor, informe o nome do funcionário.")
     else:
         res = st.session_state.dados_ultima
-        st.success(f"Dados salvos! Máquina: {res['Máquina']} | Horímetro: {res['Horímetro']}")
+        st.success(f"Dados salvos! Registro em: {res['Data']}")
         
         c1, c2 = st.columns(2)
         msg_wa = f"📋 *RELATÓRIO: {res['Máquina']}*\nStatus: {res['Status']}\nHorímetro: {res['Horímetro']}\nFunc: {res['Funcionário']}\nFalhas: {res['Falhas']}"
@@ -146,14 +148,15 @@ with aba2:
         if df_cloud is not None and not df_cloud.empty:
             df_cloud['Data_DT'] = pd.to_datetime(df_cloud['Data'], format='%d/%m/%Y %H:%M', errors='coerce')
             
-            # --- FILTROS ---
+            # --- FILTROS COM HORA BRASILIA ---
+            agora_br = get_data_hora_br()
+            
             f1, f2, f3, f4 = st.columns(4)
-            d_ini = f1.date_input("Início", value=datetime.now().replace(day=1), key="d_i")
-            d_fim = f2.date_input("Fim", value=datetime.now(), key="d_f")
+            d_ini = f1.date_input("Início", value=agora_br.replace(day=1), key="d_i")
+            d_fim = f2.date_input("Fim", value=agora_br, key="d_f")
             status_f = f3.selectbox("Status", ["Todos", "🟢 OK", "🔴 NÃO CONFORMIDADE"])
             maquina_f = f4.selectbox("Máquina", ["Todas"] + sorted(df_cloud['Máquina'].unique().tolist()))
             
-            # --- APLICAÇÃO ---
             mask = (df_cloud['Data_DT'].dt.date >= d_ini) & (df_cloud['Data_DT'].dt.date <= d_fim)
             if status_f != "Todos":
                 mask = mask & (df_cloud['Status'] == status_f)
@@ -169,21 +172,18 @@ with aba2:
                 st.divider()
                 c_pdf, c_csv, c_mail = st.columns(3)
                 
-                # PDF
                 pdf_bytes = gerar_pdf(df_view)
                 c_pdf.download_button("📄 Baixar PDF", pdf_bytes, "relatorio.pdf", "application/pdf", use_container_width=True)
                 
-                # CSV
                 csv_data = df_view.to_csv(index=False).encode('utf-8')
                 c_csv.download_button("📥 Baixar CSV (Excel)", csv_data, "historico.csv", "text/csv", use_container_width=True)
                 
-                # E-MAIL
                 corpo_email = f"Relatório de Inspeções:\n\n"
                 for _, r in df_view.iterrows():
                     corpo_email += f"- {r['Data']} | {r['Máquina']} (H: {r['Horímetro']}) | {r['Status']}\n"
                 
                 c_mail.link_button("📧 Enviar por E-mail", f"mailto:?subject=Relatorio&body={urllib.parse.quote(corpo_email)}", use_container_width=True)
             else:
-                st.info("Nenhum dado encontrado para os filtros aplicados.")
+                st.info("Nenhum dado encontrado.")
     except Exception as e:
-        st.warning("Aguardando conexão com a planilha ou planilha vazia.")
+        st.warning("Aguardando conexão...")
