@@ -90,10 +90,10 @@ with aba1:
             
             st.divider()
             itens = [
-                "NÍVEL DE ÓLEO DO CARTER", "ÓLEO HIDRÁULICO", "NÍVEL ÁGUA RADIADOR", "PRESSÃO E ESTADO DOS PNEUS", 
+                "NÍVEL DE ÓLEO DO CARTER", "ÓLEO HIDRÁULICO", "NÍVEL ÁGUA RADIADOR", "PRESSÃO DO PNEUS", "ESTADO DOS PNEUS", 
                 "FREIO ESTACIONÁRIO", "INSTRUMENTOS DO PAINEL", "VAZAMENTO COMBUSTÍVEL", "SISTEMA DE DIREÇÃO", 
                 "FUNCIONAMENTO DO MOTOR", "CORREIA DO VENTILADOR", "BUZINA", "FARÓIS/LANTERNAS", "LIMPEZA GERAL", 
-                "PINTURA/AVARIAS", "GARFOS/MACACO", "CINTAS"
+                "PINTURA/AVARIAS", "GARFOS", "MACACO", "CINTAS"
             ]
             
             respostas = {}
