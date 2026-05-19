@@ -211,6 +211,22 @@ with aba2:
     except Exception as e:
         st.error(f"Erro ao carregar histórico: {e}")
 
+# --- ASSINATURA FINALIZADA COM FONTE GABRIOLA ---
+st.markdown("---")
+
+st.markdown(
+    """
+    <div style='text-align: center; margin-top: 100px;'>
+        <p style='margin-bottom: -8px; font-family: "Gabriola", serif; font-style: italic; font-size: 18px; color: #0056b3;'>
+            Developed by:
+        </p>
+        <p style='font-family: "Gabriola", serif; font-size: 20px; font-weight: 100; color: #1e7044;'>
+            Edison Duarte Filho®
+        </p>
+    </div>
+    """,
+    unsafe_allow_html=True
+)
 
 
 
