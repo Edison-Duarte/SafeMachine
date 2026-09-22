@@ -82,8 +82,8 @@ with aba1:
             col1, col2, col3 = st.columns(3)
             nome = col1.text_input("👤 Funcionário")
             maquina = col2.selectbox("🚜 Máquina", [
-                "01 - Travel 75", "02 - Travel 35", "03 - Trator Massey Ferguson", 
-                "04 - Trator Valtra 100", "05 - Trator Valtra 100", 
+                "01 - Travel 75", "02 - Travel 35", "11 - Trator Massey Ferguson", 
+                "04 - Trator Valtra 100", "03 - Trator Valtra 100", 
                 "07 - Plataforma Snocker", "11 - Empilhadeira Liugong"
             ])
             horimetro = col3.number_input("⏲️ Horímetro", min_value=0.0, step=0.1)
